@@ -4,7 +4,7 @@ spacy
 tqdm
 warcio
 sentence-transformers
-cross-encoder
+transformers[torch]>=4.35
 fastapi
 uvicorn
 psycopg2-binary
