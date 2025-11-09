@@ -4,6 +4,7 @@ spacy
 tqdm
 warcio
 sentence-transformers
+cross-encoder
 fastapi
 uvicorn
 psycopg2-binary
