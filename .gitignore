@@ -1,2 +1,6 @@
 .hybrid-engine/
 .hybrid-engine/*
+data/*
+.DS_Store
+__pycache__/
+*.pyc

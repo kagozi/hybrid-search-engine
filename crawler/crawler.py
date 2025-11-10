@@ -59,7 +59,7 @@ class PoliteCrawler:
                 if len(self.documents) % 1000 == 0:
                     print(f"Crawled {len(self.documents)} docs...")
 
-        with open("../data/arxiv_docs.jsonl", "w") as f:
+        with open("data/arxiv_docs.jsonl", "w") as f:
             for d in self.documents:
                 f.write(json.dumps(d) + "\n")
         print(f"Saved {len(self.documents)} documents.")
@@ -69,5 +69,5 @@ if __name__ == "__main__":
         "https://arxiv.org/list/cs/recent",
         "https://arxiv.org/list/q-bio/recent"
     ]
-    crawler = PoliteCrawler(seeds, max_pages=50000)
+    crawler = PoliteCrawler(seeds, max_pages=10000)
     asyncio.run(crawler.run())

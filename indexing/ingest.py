@@ -14,12 +14,12 @@ def clean_text(raw):
     return " ".join(tokens)
 
 docs = []
-with open("../data/arxiv_docs.jsonl") as f:
+with open("data/arxiv_docs.jsonl") as f:
     for line in tqdm(f, desc="Cleaning"):
         d = json.loads(line)
         d["clean_text"] = clean_text(d["text"])
         docs.append(d)
 
-with open("../data/arxiv_clean.jsonl", "w") as f:
+with open("data/arxiv_clean.jsonl", "w") as f:
     for d in docs:
         f.write(json.dumps(d) + "\n")
