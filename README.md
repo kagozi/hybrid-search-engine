@@ -1,4 +1,3 @@
-```markdown
 # Hybrid Semantic Search Engine with Adaptive Fusion & Neural Re-ranking  
 ---
 
@@ -55,33 +54,6 @@ PostgreSQL (pgvector)
         ▼
    Documents + Embeddings
 ```
-
----
-
-## Project Structure  
-
-```
-hybrid-search-engine/
-├── crawler/
-│   └── crawler.py              # Async arXiv crawler (10K docs)
-├── indexing/
-│   ├── ingest.py               # Text cleaning (spaCy)
-│   └── index_pg.py             # BM25 + pgvector indexing
-├── fusion/
-│   ├── query_analyzer.py       # Extract query features
-│   └── adaptive_fusion.py      # Compute α(q)
-├── api/
-│   └── main.py                 # FastAPI + search endpoint
-├── data/                       # Runtime data
-│   ├── arxiv_docs.jsonl
-│   └── arxiv_clean.jsonl
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
-```
-
----
 
 ## Quick Start (One-Click)  
 
