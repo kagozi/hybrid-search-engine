@@ -59,7 +59,7 @@ PostgreSQL (pgvector)
 
 ```bash
 # 1. Clone & enter
-git clone <repo>
+git clone https://github.com/kagozi/hybrid-search-engine.git
 cd hybrid-search-engine
 
 # 2. Crawl 10K arXiv papers
