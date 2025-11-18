@@ -62,13 +62,16 @@ def dense(query: str, limit=100):
     qv = embedder.encode(query, normalize_embeddings=True).tolist()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, title, url, text, embedding <=> %s AS d
+        SELECT id, title, url, text,
+               embedding <=> %s::vector(384) AS d
         FROM documents
-        ORDER BY d LIMIT %s;
+        ORDER BY d
+        LIMIT %s;
     """, (qv, limit))
     rows = cur.fetchall()
     cur.close()
     return rows
+
 
 def fuse_rerank(query: str, bm25_res, dense_res, top_k=10):
     alpha = get_alpha(query)
