@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS documents (
     embedding VECTOR(384)
 );
 CREATE INDEX IF NOT EXISTS idx_clean_text ON documents USING GIN (clean_text);
-CREATE INDEX IF NOT EXISTS idx_embedding ON documents USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_embedding ON documents USING ivfflat (embedding vector_cosine_ops);
 """)
 conn.commit()
 
