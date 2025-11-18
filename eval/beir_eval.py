@@ -57,7 +57,7 @@ def bm25_search(query, limit=TOP_K):
 def dense_search(query, limit=TOP_K):
     q_emb = dense_model.encode(query, normalize_embeddings=True)
     cur.execute("""
-        SELECT id, embedding <=> %s AS dist
+        SELECT id, embedding <=> %s::vector(384) AS dist
         FROM documents
         ORDER BY dist LIMIT %s
     """, (q_emb.tolist(), limit))
