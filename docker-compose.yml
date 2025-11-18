@@ -1,7 +1,7 @@
 # docker-compose.yml
 services:
   db:
-    image: ankane/pgvector:latest
+    image: pgvector/pgvector:pg16  #
     environment:
       POSTGRES_DB: ir_db
       POSTGRES_USER: user
@@ -16,16 +16,6 @@ services:
       timeout: 3s
       retries: 10
 
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      - PYTHONUNBUFFERED=1
-
   index:
     build: .
     command: >
@@ -36,6 +26,14 @@ services:
     volumes:
       - .:/app
     working_dir: /app
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:

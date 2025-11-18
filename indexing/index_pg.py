@@ -2,22 +2,17 @@
 import json
 import psycopg2
 from sentence_transformers import SentenceTransformer
-import numpy as np
 from tqdm import tqdm
 
-# CONNECT TO DOCKER DB VIA SERVICE NAME
-conn = psycopg2.connect(
-    host="db",  # <-- DOCKER SERVICE NAME
-    dbname="ir_db",
-    user="user",
-    password="pass",
-    port=5432
-)
+conn = psycopg2.connect(host="db", dbname="ir_db", user="user", password="pass")
 cur = conn.cursor()
 
-print("Creating table...")
+print("Enabling pgvector and creating table...")
+cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")  # ← THIS IS REQUIRED
+
 cur.execute("""
-CREATE TABLE IF NOT EXISTS documents (
+DROP TABLE IF EXISTS documents;
+CREATE TABLE documents (
     id SERIAL PRIMARY KEY,
     title TEXT,
     url TEXT,
@@ -26,22 +21,19 @@ CREATE TABLE IF NOT EXISTS documents (
     embedding VECTOR(384)
 );
 CREATE INDEX IF NOT EXISTS idx_clean_text ON documents USING GIN (clean_text);
-CREATE INDEX IF NOT EXISTS idx_embedding ON documents USING ivfflat (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_embedding ON documents USING hnsw (embedding vector_cosine_ops);
 """)
 conn.commit()
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 docs = []
-input_path = "data/arxiv_clean.jsonl"  # <-- relative to container
 
-print(f"Loading {input_path}...")
-with open(input_path) as f:
+print("Loading data/arxiv_clean.jsonl...")
+with open("data/arxiv_clean.jsonl") as f:
     for line in tqdm(f, desc="Indexing", unit="doc"):
         d = json.loads(line)
-        embedding = model.encode(d["clean_text"], normalize_embeddings=True).tolist()
-        docs.append((
-            d["title"], d["url"], d["text"], d["clean_text"], embedding
-        ))
+        emb = model.encode(d["clean_text"], normalize_embeddings=True).tolist()
+        docs.append((d["title"], d["url"], d["text"], d["clean_text"], emb))
 
 print(f"Inserting {len(docs)} documents...")
 cur.executemany("""
@@ -50,6 +42,6 @@ VALUES (%s, %s, %s, to_tsvector(%s), %s)
 """, docs)
 conn.commit()
 
-print("Indexing complete!")
+print("Indexing complete! Your hybrid search engine is ready.")
 cur.close()
 conn.close()
