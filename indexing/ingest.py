@@ -3,8 +3,17 @@ import json
 from bs4 import BeautifulSoup
 import spacy
 from tqdm import tqdm
+import warnings
 
-nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+warnings.filterwarnings("ignore", category=UserWarning, module="urllib3")
+
+try:
+    nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+except OSError:
+    print("Downloading en_core_web_sm...")
+    import subprocess
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
+    nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
 
 def clean_text(raw):
     soup = BeautifulSoup(raw, "html.parser")
@@ -14,12 +23,19 @@ def clean_text(raw):
     return " ".join(tokens)
 
 docs = []
-with open("data/arxiv_docs.jsonl") as f:
-    for line in tqdm(f, desc="Cleaning"):
+input_path = "data/arxiv_docs.jsonl"
+output_path = "data/arxiv_clean.jsonl"
+
+print(f"Loading {input_path}...")
+with open(input_path) as f:
+    for line in tqdm(f, desc="Cleaning", unit="doc"):
         d = json.loads(line)
         d["clean_text"] = clean_text(d["text"])
         docs.append(d)
 
-with open("data/arxiv_clean.jsonl", "w") as f:
+print(f"Saving {len(docs)} cleaned docs to {output_path}...")
+with open(output_path, "w") as f:
     for d in docs:
         f.write(json.dumps(d) + "\n")
+
+print("Cleaning complete!")

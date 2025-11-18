@@ -5,9 +5,9 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from tqdm import tqdm
 
-# CONNECT TO DOCKER DB (not localhost)
+# CONNECT TO DOCKER DB VIA SERVICE NAME
 conn = psycopg2.connect(
-    host="db", 
+    host="db",  # <-- DOCKER SERVICE NAME
     dbname="ir_db",
     user="user",
     password="pass",
@@ -29,10 +29,9 @@ CREATE INDEX IF NOT EXISTS idx_clean_text ON documents USING GIN (clean_text);
 """)
 conn.commit()
 
-# Load model
 model = SentenceTransformer('all-MiniLM-L6-v2')
 docs = []
-input_path = "data/arxiv_clean.jsonl"
+input_path = "data/arxiv_clean.jsonl"  # <-- relative to container
 
 print(f"Loading {input_path}...")
 with open(input_path) as f:
