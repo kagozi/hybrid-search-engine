@@ -63,7 +63,7 @@ git clone https://github.com/kagozi/hybrid-search-engine.git
 cd hybrid-search-engine
 
 # 2. Crawl 10K arXiv papers
-python crawler/crawler.py
+python crawler/arxiv_oai_downloader.py
 
 # 3. Start DB + Index
 docker-compose up -d db && sleep 10
@@ -76,9 +76,8 @@ docker-compose up --build api
 **API Ready:** [http://localhost:8000/docs](http://localhost:8000/docs)  
 
 Try:  
-```text
-q=CRISPR off-target prediction
-q=quantum error correction
+```
+curl "http://localhost:8000/search?q=neural+retrieval+biomedical+text"
 ```
 
 ---
