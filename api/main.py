@@ -25,8 +25,8 @@ def get_db():
             conn = psycopg2.connect(
                 host="db",
                 dbname="ir_db",
-                user="user",
-                password="pass",
+                user="postgres",
+                password="mysecretpassword",
                 cursor_factory=RealDictCursor
             )
             conn.autocommit = True
