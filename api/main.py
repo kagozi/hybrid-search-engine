@@ -1,5 +1,6 @@
 # api/main.py
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware  # ← NEW: Import CORS
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -10,60 +11,76 @@ import numpy as np
 from typing import List
 from fusion.adaptive_fusion import get_alpha
 import time
+import os
 
-app = FastAPI(title="Hybrid Semantic Search + Rerank")
+app = FastAPI(title="Hybrid Semantic Search + Rerank (arXiv)")
 
-# Models
+# ← NEW: Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "*"],  # Allow your Vue dev server (and * for simplicity)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
+# Models (load once at startup)
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
 rerank_tokenizer = AutoTokenizer.from_pretrained('cross-encoder/ms-marco-MiniLM-L-6-v2')
 rerank_model = AutoModelForSequenceClassification.from_pretrained('cross-encoder/ms-marco-MiniLM-L-6-v2')
 rerank_model.eval()
 
 def get_db():
+    """Connect to DB with retries."""
     for _ in range(10):
         try:
             conn = psycopg2.connect(
-                host="db",
-                dbname="ir_db",
-                user="postgres",
-                password="mysecretpassword",
+                host=os.getenv("PGHOST", "db"),
+                port=os.getenv("PGPORT", "5432"),
+                dbname=os.getenv("PGDATABASE", "ir_db"),
+                user=os.getenv("PGUSER", "postgres"),
+                password=os.getenv("PGPASSWORD", "mysecretpassword"),
                 cursor_factory=RealDictCursor
             )
             conn.autocommit = True
             return conn
         except psycopg2.OperationalError:
-            print("DB not ready, retrying...")
+            print("Waiting for DB...")
             time.sleep(2)
-    raise Exception("Could not connect to DB")
+    raise Exception("DB connection failed after retries")
 
 conn = get_db()
 
+# Pydantic model (id as str for arXiv IDs like "2401.12345")
 class Hit(BaseModel):
-    id: int
+    id: str  # ← String for arXiv IDs
     title: str
     url: str
     score: float
     alpha: float
     rerank_score: float
 
-def bm25(query: str, limit=100):
+def bm25(query: str, limit: int = 100):
+    """Sparse retrieval with BM25."""
     cur = conn.cursor()
     cur.execute("""
         SELECT id, title, url, text, ts_rank_cd(clean_text, plainto_tsquery(%s)) AS s
         FROM documents
         WHERE clean_text @@ plainto_tsquery(%s)
-        ORDER BY s DESC LIMIT %s;
+        ORDER BY s DESC
+        LIMIT %s;
     """, (query, query, limit))
     rows = cur.fetchall()
     cur.close()
     return rows
 
-def dense(query: str, limit=100):
+def dense(query: str, limit: int = 100):
+    """Dense retrieval with embeddings."""
     qv = embedder.encode(query, normalize_embeddings=True).tolist()
     cur = conn.cursor()
     cur.execute("""
         SELECT id, title, url, text,
-               embedding <=> %s::vector(384) AS d
+               embedding <=> %s::vector AS d
         FROM documents
         ORDER BY d
         LIMIT %s;
@@ -72,38 +89,45 @@ def dense(query: str, limit=100):
     cur.close()
     return rows
 
-
-def fuse_rerank(query: str, bm25_res, dense_res, top_k=10):
+def fuse_rerank(query: str, bm25_res, dense_res, top_k: int = 10):
+    """Adaptive fusion + cross-encoder reranking."""
     alpha = get_alpha(query)
 
-    bm25_s = np.array([r['s'] for r in bm25_res]) if bm25_res else np.array([])
-    dense_s = np.array([1-r['d'] for r in dense_res]) if dense_res else np.array([])
-    if bm25_s.size: bm25_s = bm25_s / (bm25_s.max() + 1e-8)
-    if dense_s.size: dense_s = dense_s / (dense_s.max() + 1e-8)
+    # Normalize scores
+    bm25_scores = np.array([r['s'] for r in bm25_res]) if bm25_res else np.array([])
+    dense_scores = np.array([1 - r['d'] for r in dense_res]) if dense_res else np.array([])
 
+    if bm25_scores.size > 0:
+        bm25_scores /= (bm25_scores.max() + 1e-8)
+    if dense_scores.size > 0:
+        dense_scores /= (dense_scores.max() + 1e-8)
+
+    # Fuse scores (handle duplicates)
     fused = {}
     for i, r in enumerate(bm25_res):
-        fused[r['id']] = alpha * bm25_s[i]
+        fused[r['id']] = fused.get(r['id'], 0) + alpha * bm25_scores[i]
     for i, r in enumerate(dense_res):
-        fused[r['id']] = fused.get(r['id'], 0) + (1-alpha) * dense_s[i]
+        fused[r['id']] = fused.get(r['id'], 0) + (1 - alpha) * dense_scores[i]
 
-    candidates = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:top_k*3]
+    # Top candidates for reranking
+    candidates = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:top_k * 3]
 
-    doc_map = {}
     passages = []
+    doc_map = {}
     for doc_id, _ in candidates:
         cur = conn.cursor()
-        cur.execute("SELECT title, url, text FROM documents WHERE id=%s", (doc_id,))
+        cur.execute("SELECT title, url, text FROM documents WHERE id = %s", (doc_id,))
         row = cur.fetchone()
         cur.close()
         if row:
             idx = len(passages)
-            passages.append(row['text'][:1000])
+            passages.append(row['text'][:1000])  # Truncate for efficiency
             doc_map[idx] = (doc_id, row['title'], row['url'])
 
     if not passages:
         return []
 
+    # Cross-encoder reranking
     inputs = rerank_tokenizer(
         [query] * len(passages),
         passages,
@@ -114,13 +138,16 @@ def fuse_rerank(query: str, bm25_res, dense_res, top_k=10):
     )
     with torch.no_grad():
         logits = rerank_model(**inputs).logits.squeeze(-1)
-    scores = torch.sigmoid(logits).cpu().numpy()
+    scores = torch.sigmoid(logits).cpu().numpy().tolist()
 
+    # Final ranked results
     ranked = sorted(zip(doc_map.items(), scores), key=lambda x: x[1], reverse=True)[:top_k]
 
     return [
         Hit(
-            id=doc_id, title=title, url=url,
+            id=doc_id,
+            title=title,
+            url=url,
             score=round(float(score), 4),
             alpha=round(alpha, 3),
             rerank_score=round(float(score), 4)
@@ -128,12 +155,22 @@ def fuse_rerank(query: str, bm25_res, dense_res, top_k=10):
         for (idx, (doc_id, title, url)), score in ranked
     ]
 
+# Endpoints
 @app.get("/search", response_model=List[Hit])
 def search(q: str = Query(..., min_length=1)):
-    b = bm25(q)
-    d = dense(q)
-    return fuse_rerank(q, b, d)
+    bm25_results = bm25(q)
+    dense_results = dense(q)
+    return fuse_rerank(q, bm25_results, dense_results)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "docs": conn.cursor().execute("SELECT COUNT(*) FROM documents").fetchone()[0]}
+    try:
+        count = conn.cursor().execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        return {"status": "healthy", "documents_indexed": int(count)}
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
+
+# Root for quick testing
+@app.get("/")
+def root():
+    return {"message": "Hybrid Semantic Search Engine (arXiv Corpus) – CSC 785", "docs": "/docs"}
