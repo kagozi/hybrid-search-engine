@@ -12,7 +12,7 @@ This project implements a **lightweight, high-performance hybrid information ret
 
 > **Domain**: Scientific literature (arXiv CS + Quantitative Biology)  
 > **Dataset**: 10,000+ arXiv papers (crawled or pre-loaded)  
-> **Evaluation**: Ready for BEIR (`ranx`) — SciFact, TREC-COVID  
+> **Evaluation**: Ready for BEIR (`ranx`) — SciFact, TREC-COVID, NFCorpus
 
 ---
 
@@ -73,32 +73,27 @@ docker-compose up index
 docker-compose up --build api
 ```
 
+```
 **API Ready:** [http://localhost:8000/docs](http://localhost:8000/docs)  
-
-Try:  
+Try:  curl "http://localhost:8000/search?q=neural+retrieval+biomedical+text"
 ```
-curl "http://localhost:8000/search?q=neural+retrieval+biomedical+text"
-```
-
----
-
-## Manual Run (No Docker)  
 
 ```bash
+# 5. Download, index and run evaluation on beir dataset
 # Install deps
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
-# Crawl → Clean → Index
-python crawler/crawler.py
-python indexing/ingest.py
-python indexing/index_pg.py
+# Download -> Clean → Index -> ridge regression -> evaluation
+# Lexical and semantic embeddings
+python indexing/index_beir.py 
 
-# Run API
-uvicorn api.main:app --reload --port 8000
-```
+# ridge regression
+python fusion/train_alpha_regressor.py # this outputs the learned weights into the alpha_params_improved.json file. Copy them and edit the into the adaptive_fusion.py weights and bias.
 
----
+# Evaluate the different approaches on the 3 datasets
+python eval/beir_eval.py
+
 ## Evaluation (BEIR + `ranx`)  
 ## Novel Contribution: Adaptive Fusion  
 
