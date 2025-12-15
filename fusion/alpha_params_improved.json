@@ -1,0 +1,42 @@
+{
+  "weights": [
+    -0.013306066324155333,
+    -0.3862985607301423,
+    -0.026992314255149814,
+    0.22470214172250777,
+    -0.06930414733971775,
+    -0.9365620058827904,
+    0.9365620058827571,
+    0.0
+  ],
+  "bias": -1.5307999213988386,
+  "feature_names": [
+    "length_norm",
+    "content_length_norm",
+    "entity_ratio",
+    "acronym_ratio",
+    "idf_variance_norm",
+    "is_scifact",
+    "is_trec_covid",
+    "is_nfcorpus"
+  ],
+  "num_samples": 313,
+  "alpha_stats": {
+    "min": 0.05,
+    "max": 0.95,
+    "mean": 0.10527156549520768,
+    "std": 0.18932199456477244
+  },
+  "validation_mse": 1.1164216446040192,
+  "regularization": 1.0,
+  "datasets": {
+    "scifact": {
+      "samples": 264,
+      "alpha_mean": 0.05587121212121212
+    },
+    "trec-covid": {
+      "samples": 49,
+      "alpha_mean": 0.37142857142857144
+    }
+  }
+}
